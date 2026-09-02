@@ -10,7 +10,13 @@
         android:label="SyncPlay"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+<activity
+    android:name=".HostActivity"
+    android:exported="false" />
 
+<activity
+    android:name=".JoinActivity"
+    android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
