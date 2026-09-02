@@ -24,10 +24,13 @@ class AudioCaptureService : Service() {
     private var audioRecord: AudioRecord? = null
     private var captureThread: Thread? = null
 
+    private var networkServer: NetworkServer? = null
+
     @Volatile
     private var isCapturing = false
 
     companion object {
+
         private const val CHANNEL_ID = "syncplay_capture"
         private const val NOTIFICATION_ID = 1001
 
@@ -37,7 +40,12 @@ class AudioCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
         createNotificationChannel()
+
+        // Start local audio server
+        networkServer = NetworkServer()
+        networkServer?.start()
     }
 
     override fun onStartCommand(
@@ -52,25 +60,40 @@ class AudioCaptureService : Service() {
         }
 
         val resultCode =
-            intent.getIntExtra(RESULT_CODE, Activity.RESULT_CANCELED)
+            intent.getIntExtra(
+                RESULT_CODE,
+                Activity.RESULT_CANCELED
+            )
 
         val projectionData: Intent? =
             if (Build.VERSION.SDK_INT >= 33) {
+
                 intent.getParcelableExtra(
                     PROJECTION_DATA,
                     Intent::class.java
                 )
+
             } else {
+
                 @Suppress("DEPRECATION")
-                intent.getParcelableExtra(PROJECTION_DATA)
+                intent.getParcelableExtra(
+                    PROJECTION_DATA
+                )
             }
 
-        if (resultCode != Activity.RESULT_OK || projectionData == null) {
+        if (
+            resultCode != Activity.RESULT_OK ||
+            projectionData == null
+        ) {
+
             stopSelf()
             return START_NOT_STICKY
         }
 
-        startCapture(resultCode, projectionData)
+        startCapture(
+            resultCode,
+            projectionData
+        )
 
         return START_NOT_STICKY
     }
@@ -82,17 +105,21 @@ class AudioCaptureService : Service() {
 
         if (isCapturing) return
 
-        val notification = createNotification(
-            "Capturing Host audio..."
-        )
+        val notification =
+            createNotification(
+                "Capturing live audio..."
+            )
 
         if (Build.VERSION.SDK_INT >= 29) {
+
             startForeground(
                 NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             )
+
         } else {
+
             startForeground(
                 NOTIFICATION_ID,
                 notification
@@ -121,6 +148,7 @@ class AudioCaptureService : Service() {
     private fun setupAudioCapture() {
 
         if (Build.VERSION.SDK_INT < 29) {
+
             stopSelf()
             return
         }
@@ -142,25 +170,30 @@ class AudioCaptureService : Service() {
                     )
                     .build()
 
+            val sampleRate = 48000
+
+            val channelMask =
+                AudioFormat.CHANNEL_IN_MONO
+
+            val encoding =
+                AudioFormat.ENCODING_PCM_16BIT
+
             val audioFormat =
                 AudioFormat.Builder()
-                    .setEncoding(
-                        AudioFormat.ENCODING_PCM_16BIT
-                    )
-                    .setSampleRate(48000)
-                    .setChannelMask(
-                        AudioFormat.CHANNEL_IN_MONO
-                    )
+                    .setEncoding(encoding)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(channelMask)
                     .build()
 
             val minBufferSize =
                 AudioRecord.getMinBufferSize(
-                    48000,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
+                    sampleRate,
+                    channelMask,
+                    encoding
                 )
 
             if (minBufferSize <= 0) {
+
                 stopSelf()
                 return
             }
@@ -168,4 +201,132 @@ class AudioCaptureService : Service() {
             audioRecord =
                 AudioRecord.Builder()
                     .setAudioFormat(audioFormat)
-                    .set
+                    .setBufferSizeInBytes(
+                        minBufferSize * 2
+                    )
+                    .setAudioPlaybackCaptureConfig(
+                        captureConfig
+                    )
+                    .build()
+
+            audioRecord?.startRecording()
+
+            isCapturing = true
+
+            captureThread = thread(
+                start = true,
+                name = "SyncPlayAudioCapture"
+            ) {
+
+                val buffer =
+                    ByteArray(minBufferSize)
+
+                while (isCapturing) {
+
+                    val bytesRead =
+                        audioRecord?.read(
+                            buffer,
+                            0,
+                            buffer.size
+                        ) ?: 0
+
+                    if (bytesRead > 0) {
+
+                        // Captured live PCM audio
+                        // is sent to connected receivers.
+
+                        networkServer?.sendAudio(
+                            buffer,
+                            bytesRead
+                        )
+                    }
+                }
+            }
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+            stopCapture()
+        }
+    }
+
+    private fun createNotification(
+        text: String
+    ) =
+        NotificationCompat.Builder(
+            this,
+            CHANNEL_ID
+        )
+            .setContentTitle("SyncPlay")
+            .setContentText(text)
+            .setSmallIcon(
+                android.R.drawable.ic_media_play
+            )
+            .setOngoing(true)
+            .build()
+
+    private fun createNotificationChannel() {
+
+        if (Build.VERSION.SDK_INT >= 26) {
+
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "SyncPlay Audio Capture",
+                    NotificationManager.IMPORTANCE_LOW
+                )
+
+            val manager =
+                getSystemService(
+                    NotificationManager::class.java
+                )
+
+            manager.createNotificationChannel(
+                channel
+            )
+        }
+    }
+
+    private fun stopCapture() {
+
+        isCapturing = false
+
+        try {
+            audioRecord?.stop()
+        } catch (_: Exception) {
+        }
+
+        try {
+            audioRecord?.release()
+        } catch (_: Exception) {
+        }
+
+        audioRecord = null
+
+        try {
+            mediaProjection?.stop()
+        } catch (_: Exception) {
+        }
+
+        mediaProjection = null
+    }
+
+    override fun onDestroy() {
+
+        stopCapture()
+
+        networkServer?.stop()
+        networkServer = null
+
+        captureThread = null
+
+        super.onDestroy()
+    }
+
+    override fun onBind(
+        intent: Intent?
+    ): IBinder? {
+        return null
+    }
+}
