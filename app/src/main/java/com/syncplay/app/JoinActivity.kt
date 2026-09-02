@@ -11,7 +11,10 @@ import android.widget.TextView
 
 class JoinActivity : Activity() {
 
+    private lateinit var status: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
 
         val layout = LinearLayout(this)
@@ -30,16 +33,16 @@ class JoinActivity : Activity() {
         val ipInput = EditText(this)
 
         ipInput.hint = "Host IP address"
-        ipInput.inputType = 1
+        ipInput.textSize = 18f
 
         val joinButton = Button(this)
 
         joinButton.text = "JOIN"
 
-        val status = TextView(this)
+        status = TextView(this)
 
         status.text = "Not connected"
-        status.textSize = 16f
+        status.textSize = 18f
         status.gravity = Gravity.CENTER
 
         layout.addView(title)
@@ -48,5 +51,42 @@ class JoinActivity : Activity() {
         layout.addView(status)
 
         setContentView(layout)
+
+        joinButton.setOnClickListener {
+
+            val ip = ipInput.text.toString().trim()
+
+            if (ip.isEmpty()) {
+
+                status.text = "Enter Host IP address"
+
+                return@setOnClickListener
+            }
+
+            status.text = "Connecting..."
+
+            NetworkClient(
+                hostIp = ip,
+
+                onConnected = {
+
+                    runOnUiThread {
+
+                        status.text =
+                            "✓ Connected to Host"
+                    }
+                },
+
+                onError = {
+
+                    runOnUiThread {
+
+                        status.text =
+                            "Connection failed"
+                    }
+                }
+
+            ).connect()
+        }
     }
 }
