@@ -4,10 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
-import android.graphics.Color
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -48,32 +48,33 @@ class HostActivity : Activity() {
         status.textSize = 18f
         status.gravity = Gravity.CENTER
 
-        val startCaptureButton = Button(this)
-        startCaptureButton.text = "🎵 START AUDIO CAPTURE"
+        val startButton = Button(this)
+        startButton.text = "🎵 START AUDIO SHARING"
 
-        val stopCaptureButton = Button(this)
-        stopCaptureButton.text = "⏹ STOP CAPTURE"
+        val stopButton = Button(this)
+        stopButton.text = "⏹ STOP SHARING"
 
         layout.addView(title)
         layout.addView(room)
         layout.addView(status)
-        layout.addView(startCaptureButton)
-        layout.addView(stopCaptureButton)
+        layout.addView(startButton)
+        layout.addView(stopButton)
 
         setContentView(layout)
 
-        startCaptureButton.setOnClickListener {
+        startButton.setOnClickListener {
             requestAudioPermission()
         }
 
-        stopCaptureButton.setOnClickListener {
-            stopAudioCapture()
+        stopButton.setOnClickListener {
+            stopAudioSharing()
         }
     }
 
     private fun requestAudioPermission() {
 
-        if (Build.VERSION.SDK_INT >= 23 &&
+        if (
+            Build.VERSION.SDK_INT >= 23 &&
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.RECORD_AUDIO
@@ -95,8 +96,10 @@ class HostActivity : Activity() {
     private fun requestMediaProjection() {
 
         if (Build.VERSION.SDK_INT < 29) {
+
             status.text =
-                "Live audio capture requires Android 10+"
+                "Android 10 or newer is required"
+
             return
         }
 
@@ -105,11 +108,11 @@ class HostActivity : Activity() {
                 MEDIA_PROJECTION_SERVICE
             ) as MediaProjectionManager
 
-        val intent =
+        val captureIntent =
             manager.createScreenCaptureIntent()
 
         startActivityForResult(
-            intent,
+            captureIntent,
             MEDIA_PROJECTION_REQUEST
         )
     }
@@ -130,7 +133,8 @@ class HostActivity : Activity() {
 
             if (
                 grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
+                grantResults[0] ==
+                PackageManager.PERMISSION_GRANTED
             ) {
 
                 requestMediaProjection()
@@ -163,7 +167,7 @@ class HostActivity : Activity() {
                 data != null
             ) {
 
-                startAudioCapture(
+                startAudioSharing(
                     resultCode,
                     data
                 )
@@ -176,7 +180,7 @@ class HostActivity : Activity() {
         }
     }
 
-    private fun startAudioCapture(
+    private fun startAudioSharing(
         resultCode: Int,
         data: Intent
     ) {
@@ -211,25 +215,20 @@ class HostActivity : Activity() {
         }
 
         status.text =
-            "✓ Live audio capture started"
+            "✓ Audio sharing started\nPort: 8988"
     }
 
-    private fun stopAudioCapture() {
+    private fun stopAudioSharing() {
 
-        val intent =
+        val serviceIntent =
             Intent(
                 this,
                 AudioCaptureService::class.java
             )
 
-        stopService(intent)
+        stopService(serviceIntent)
 
         status.text =
-            "Audio capture stopped"
-    }
-
-    override fun onDestroy() {
-
-        super.onDestroy()
+            "Audio sharing stopped"
     }
 }
