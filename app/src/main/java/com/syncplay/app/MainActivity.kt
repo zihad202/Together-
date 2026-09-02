@@ -1,13 +1,13 @@
 package com.syncplay.app
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.graphics.Color
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 
 class MainActivity : Activity() {
 
@@ -18,7 +18,6 @@ class MainActivity : Activity() {
 
         layout.orientation = LinearLayout.VERTICAL
         layout.gravity = Gravity.CENTER
-
         layout.setPadding(50, 50, 50, 50)
 
         val title = TextView(this)
@@ -48,19 +47,17 @@ class MainActivity : Activity() {
         layout.addView(joinButton)
 
         hostButton.setOnClickListener {
-            Toast.makeText(
-                this,
-                "Host mode selected",
-                Toast.LENGTH_SHORT
-            ).show()
+
+            val intent = Intent(this, HostActivity::class.java)
+
+            startActivity(intent)
         }
 
         joinButton.setOnClickListener {
-            Toast.makeText(
-                this,
-                "Join mode selected",
-                Toast.LENGTH_SHORT
-            ).show()
+
+            val intent = Intent(this, JoinActivity::class.java)
+
+            startActivity(intent)
         }
 
         setContentView(layout)
